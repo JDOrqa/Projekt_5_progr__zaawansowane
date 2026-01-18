@@ -184,3 +184,69 @@ def run_single_test(exe_path, steps, threads, mode='dynamic', chunk=None, timeou
     print(f"{'='*60}")
     
     return results
+    def save_results(results, csv_path):
+    """Zapisuje wyniki do CSV"""
+    df = pd.DataFrame(results)
+    df.to_csv(csv_path, index=False, encoding='utf-8')
+    print(f"\n Zapisano wyniki do: {csv_path}")
+    print(f"   Rekordów: {len(df)}")
+    return df
+
+def plot_results(df, output_png):
+    """Generuje wykresy"""
+    if df.empty:
+        print("Brak danych do wykresu!")
+        return
+    
+    # Wykres 1: Czas vs Wątki dla różnych interwałów
+    plt.figure(figsize=(14, 8))
+    
+    colors = ['blue', 'green', 'red', 'purple', 'orange']
+    markers = ['o', 's', '^', 'D', 'v']
+    
+    steps_groups = df.groupby('steps')
+    
+    for idx, (steps, group) in enumerate(steps_groups):
+        color = colors[idx % len(colors)]
+        marker = markers[idx % len(markers)]
+        
+        group = group.sort_values('threads')
+        plt.errorbar(
+            group['threads'],
+            group['time_median'],
+            yerr=group['time_std'],
+            color=color,
+            marker=marker,
+            markersize=8,
+            linewidth=2,
+            capsize=5,
+            label=f'{steps:,} interwałów',
+            alpha=0.8
+        )
+    
+    plt.xlabel('Liczba wątków', fontsize=12)
+    plt.ylabel('Czas wykonania [s]', fontsize=12)
+    plt.title('Wydajność obliczeń PI - zależność czasu od liczby wątków', 
+              fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=11, loc='upper right')
+    plt.xticks(range(0, int(df['threads'].max()) + 1, 5))
+    
+    # Znajdź optymalne wartości
+    for steps in df['steps'].unique():
+        subset = df[df['steps'] == steps]
+        if not subset.empty:
+            min_time_idx = subset['time_median'].idxmin()
+            optimal = subset.loc[min_time_idx]
+            plt.scatter(optimal['threads'], optimal['time_median'], 
+                       color='red', s=200, zorder=5, 
+                       edgecolors='black', linewidth=2)
+            plt.annotate(f"Opt: {int(optimal['threads'])} wątków\n{optimal['time_median']:.2f}s", 
+                        (optimal['threads'], optimal['time_median']),
+                        xytext=(10, -20), textcoords='offset points',
+                        fontsize=9, fontweight='bold',
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7))
+    
+    plt.tight_layout()
+    plt.savefig(output_png, dpi=300, bbox_inches='tight')
+    print(f" Zapisano wykres do: {output_png}")
