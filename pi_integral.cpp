@@ -49,3 +49,4 @@ struct Kahan {
         sum = t;
     }
 };
+enum class Mode { DYNAMIC, STATIC };
