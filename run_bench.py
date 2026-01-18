@@ -109,3 +109,78 @@ def run_single_test(exe_path, steps, threads, mode='dynamic', chunk=None, timeou
     except Exception as e:
         print(f"    BŁĄD WYJĄTKU: {e}")
         return None
+        def run_benchmark_suite(config):
+    """Przeprowadza kompleksowe testy"""
+    results = []
+    
+    print(f"\n{'='*60}")
+    print(f"ROZPOCZĘCIE TESTOWANIA")
+    print(f"{'='*60}")
+    print(f"Program: {config['exe_path']}")
+    print(f"Tryb: {config['mode']}")
+    print(f"Chunk: {config.get('chunk', 'auto')}")
+    print(f"Powtórzenia: {config['repeats']}")
+    print(f"Interwały: {config['steps_list']}")
+    print(f"Wątki: od 1 do {config['max_threads']}")
+    print(f"{'='*60}\n")
+    
+    total_tests = len(config['steps_list']) * config['max_threads'] * config['repeats']
+    test_counter = 0
+    
+    for steps in config['steps_list']:
+        print(f"\n INTERWAŁY: {steps:,}")
+        print("-" * 40)
+        
+        for threads in range(1, config['max_threads'] + 1):
+            print(f"\n  Wątki: {threads}")
+            
+            # Uruchom kilka razy dla lepszej statystyki
+            times = []
+            pi_values = []
+            errors = []
+            
+            for repeat in range(config['repeats']):
+                test_counter += 1
+                print(f"   Powtórzenie {repeat + 1}/{config['repeats']}...", end="")
+                
+                result = run_single_test(
+                    config['exe_path'],
+                    steps,
+                    threads,
+                    config['mode'],
+                    config.get('chunk'),
+                    config['timeout']
+                )
+                
+                if result:
+                    times.append(result['time'])
+                    pi_values.append(result['pi_value'])
+                    errors.append(result['error'])
+                    print(f" OK")
+                else:
+                    print(f" FAILED")
+                
+                # Krótka pauza między testami
+                if repeat < config['repeats'] - 1:
+                    time.sleep(0.5)
+            
+            # Zapisz mediany jeśli mamy wyniki
+            if times:
+                results.append({
+                    'steps': steps,
+                    'threads': threads,
+                    'time_median': statistics.median(times),
+                    'time_mean': statistics.mean(times),
+                    'time_std': statistics.stdev(times) if len(times) > 1 else 0,
+                    'pi_median': statistics.median(pi_values),
+                    'error_median': statistics.median(errors),
+                    'samples': len(times),
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+    
+    print(f"\n{'='*60}")
+    print(f"TESTOWANIE ZAKOŃCZONE")
+    print(f"Wykonano {test_counter} testów")
+    print(f"{'='*60}")
+    
+    return results
