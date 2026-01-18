@@ -60,3 +60,52 @@ def parse_output(output):
         result['mode'] = 'static'
     
     return result
+
+def run_single_test(exe_path, steps, threads, mode='dynamic', chunk=None, timeout=600):
+    """Uruchamia pojedynczy test"""
+    # Buduj komendę
+    cmd = [exe_path, str(steps), str(threads), mode]
+    if chunk is not None:
+        cmd.append(str(chunk))
+    
+    print(f"  Uruchamianie: {' '.join(cmd)}")
+    
+    try:
+        # Uruchom program
+        start_time = time.time()
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=timeout,
+            encoding='utf-8',
+            errors='ignore'  # Ignoruj problemy z kodowaniem
+        )
+        elapsed = time.time() - start_time
+        
+        # Połącz stdout i stderr
+        output = result.stdout + "\n" + result.stderr
+        
+        if result.returncode != 0:
+            print(f"    BŁĄD (kod {result.returncode}): {output[:200]}...")
+            return None
+        
+        # Parsuj output
+        parsed = parse_output(output)
+        parsed['exit_code'] = result.returncode
+        parsed['real_time'] = elapsed
+        
+        if parsed['time'] is None:
+            print(f"    NIE ZNALEZIONO CZASU! Output: {output[:200]}...")
+            return None
+        
+        print(f"    Czas: {parsed['time']:.3f}s, PI: {parsed['pi_value']:.15f}, Błąd: {parsed['error']:.2e}")
+        return parsed
+        
+    except subprocess.TimeoutExpired:
+        print(f"    TIMEOUT po {timeout}s")
+        return None
+    except Exception as e:
+        print(f"    BŁĄD WYJĄTKU: {e}")
+        return None
