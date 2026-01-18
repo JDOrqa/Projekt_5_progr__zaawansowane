@@ -250,3 +250,132 @@ def plot_results(df, output_png):
     plt.tight_layout()
     plt.savefig(output_png, dpi=300, bbox_inches='tight')
     print(f" Zapisano wykres do: {output_png}")
+
+# Wykres 2: Speedup
+    plt.figure(figsize=(12, 6))
+    
+    for idx, (steps, group) in enumerate(steps_groups):
+        color = colors[idx % len(colors)]
+        group = group.sort_values('threads')
+        
+        # Czas dla 1 wątku jako baseline
+        single_thread_time = group[group['threads'] == 1]['time_median'].values[0]
+        speedup = single_thread_time / group['time_median']
+        
+        plt.plot(group['threads'], speedup,
+                color=color, marker=markers[idx % len(markers)],
+                linewidth=2, markersize=6,
+                label=f'{steps:,} interwałów')
+        
+        # Idealne przyspieszenie (linia przerywana)
+        plt.plot(group['threads'], group['threads'],
+                color=color, linestyle='--', alpha=0.3)
+    
+    plt.xlabel('Liczba wątków', fontsize=12)
+    plt.ylabel('Przyspieszenie (Speedup)', fontsize=12)
+    plt.title('Przyspieszenie równoległe obliczeń PI', fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=11)
+    plt.xticks(range(0, int(df['threads'].max()) + 1, 5))
+    plt.tight_layout()
+    
+    speedup_png = output_png.replace('.png', '_speedup.png')
+    plt.savefig(speedup_png, dpi=300, bbox_inches='tight')
+    print(f" Zapisano wykres speedup do: {speedup_png}")
+    
+    plt.show()
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=' Automatyzacja testów programu obliczającego PI metodą całkowania',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Przykłady użycia:
+  python benchmark.py --exe LiczbaPi.exe --steps 100000000 1000000000 --max-threads 16
+  python benchmark.py --exe pi_calculator.exe --mode static --repeats 5 --out-csv wyniki.csv
+        """
+    )
+    
+    parser.add_argument('--exe', required=True,
+                       help='Ścieżka do programu wykonywalnego (np. LiczbaPi.exe)')
+    parser.add_argument('--steps', nargs='+', type=int,
+                       default=[100000000, 500000000, 1000000000],
+                       help='Lista wartości podziałów (domyślnie: 100M, 500M, 1B)')
+    parser.add_argument('--max-threads', type=int, default=32,
+                       help='Maksymalna liczba wątków do przetestowania (domyślnie: 32)')
+    parser.add_argument('--mode', choices=['dynamic', 'static'], default='dynamic',
+                       help='Tryb przydziału pracy (domyślnie: dynamic)')
+    parser.add_argument('--chunk', type=int,
+                       help='Rozmiar chunk dla trybu dynamic (puste = auto)')
+    parser.add_argument('--repeats', type=int, default=3,
+                       help='Liczba powtórzeń każdego testu (domyślnie: 3)')
+    parser.add_argument('--timeout', type=int, default=300,
+                       help='Maksymalny czas wykonania jednego testu w sekundach (domyślnie: 300)')
+    parser.add_argument('--out-csv', default='benchmark_results.csv',
+                       help='Plik wynikowy CSV (domyślnie: benchmark_results.csv)')
+    parser.add_argument('--out-png', default='benchmark_chart.png',
+                       help='Plik z wykresem PNG (domyślnie: benchmark_chart.png)')
+    parser.add_argument('--skip-plot', action='store_true',
+                       help='Pomiń generowanie wykresów')
+    
+    args = parser.parse_args()
+    
+    # Sprawdź czy plik wykonywalny istnieje
+    if not os.path.isfile(args.exe):
+        print(f" BŁĄD: Plik wykonywalny '{args.exe}' nie istnieje!")
+        sys.exit(1)
+    
+    # Konfiguracja testów
+    config = {
+        'exe_path': args.exe,
+        'steps_list': args.steps,
+        'max_threads': args.max_threads,
+        'mode': args.mode,
+        'repeats': args.repeats,
+        'timeout': args.timeout
+    }
+    
+    if args.chunk is not None:
+        config['chunk'] = args.chunk
+    
+    # Uruchom testy
+    results = run_benchmark_suite(config)
+    
+    if not results:
+        print(" Brak wyników do zapisania!")
+        sys.exit(1)
+    
+    # Zapisz wyniki
+    df = save_results(results, args.out_csv)
+    
+    # Wygeneruj wykresy (jeśli nie pomijamy)
+    if not args.skip_plot:
+        plot_results(df, args.out_png)
+    
+    # Podsumowanie
+    print("\n" + "="*60)
+    print("  PODSUMOWANIE")
+    print("="*60)
+    print(f"Plik CSV: {args.out_csv}")
+    if not args.skip_plot:
+        print(f"Plik wykresu: {args.out_png}")
+        print(f"Plik speedup: {args.out_png.replace('.png', '_speedup.png')}")
+    
+    # Statystyki
+    print("\n STATYSTYKI:")
+    for steps in sorted(df['steps'].unique()):
+        subset = df[df['steps'] == steps]
+        best = subset.loc[subset['time_median'].idxmin()]
+        print(f"  {steps:,} interwałów:")
+        print(f" Najszybszy: {best['time_median']:.2f}s przy {int(best['threads'])} wątkach")
+        
+        # Speedup
+        single = subset[subset['threads'] == 1]['time_median'].values[0]
+        speedup = single / best['time_median']
+        print(f" Przyspieszenie: {speedup:.2f}x (idealnie: {int(best['threads'])})x")
+        print(f" Wydajność: {speedup/int(best['threads'])*100:.1f}%")
+    
+    print("\n  Wszystko gotowe!")
+
+if __name__ == '__main__':
+    main()
