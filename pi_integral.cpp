@@ -50,3 +50,22 @@ struct Kahan {
     }
 };
 enum class Mode { DYNAMIC, STATIC };
+int main(int argc, char *argv[])
+{
+    try
+    {
+        uint64_t numSteps = 0;
+        unsigned threadCount = 0;
+        Mode mode = Mode::DYNAMIC;
+        uint64_t userChunk = 0;
+
+        if (argc >= 3)
+        {
+            numSteps = parseUint64(argv[1]);
+            threadCount = static_cast<unsigned>(parseUint64(argv[2]));
+            if (argc > 3) {
+                std::string modeStr = argv[3];
+                mode = (modeStr == "static") ? Mode::STATIC : Mode::DYNAMIC;
+            }
+            if (argc > 4) userChunk = parseUint64(argv[4]);
+        }
